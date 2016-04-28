@@ -80,6 +80,8 @@ module Closure
       options.map do |k, v|
         if (v.is_a?(Array))
           v.map {|v2| ["--#{k}", v2.to_s]}
+        elsif (v.is_a?(Proc))
+          ["--#{k}", v.call.to_s]
         else
           ["--#{k}", v.to_s]
         end
