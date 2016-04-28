@@ -27,7 +27,8 @@ module Closure
     # Can compile a JavaScript string or open IO object. Returns the compiled
     # JavaScript as a string or yields an IO object containing the response to a
     # block, for streaming.
-    def compile(io)
+    def compile(args)
+      context, io = args.kind_of?(Array) ? args : [nil, args]
       tempfile = Tempfile.new('closure_compiler')
       if io.respond_to? :read
         while buffer = io.read(4096) do
@@ -39,7 +40,7 @@ module Closure
       tempfile.flush
 
       begin
-        result = compile_files(tempfile.path)
+        result = compile_files(tempfile.path, context)
       rescue Exception => e
         raise e
       ensure
@@ -54,12 +55,12 @@ module Closure
     # Takes an array of javascript file paths or a single path. Returns the
     # resulting JavaScript as a string or yields an IO object containing the
     # response to a block, for streaming.
-    def compile_files(files)
+    def compile_files(files, context)
       @options.merge!(:js => files)
 
       begin
         redirect_stderr = "2>&1" if !Gem.win_platform?
-        result = `#{command} #{redirect_stderr}`
+        result = `#{command(context)} #{redirect_stderr}`
       rescue Exception
         raise Error, "compression failed: #{result}"
       end
@@ -76,20 +77,20 @@ module Closure
     private
 
     # Serialize hash options to the command-line format.
-    def serialize_options(options)
+    def serialize_options(options, context)
       options.map do |k, v|
         if (v.is_a?(Array))
           v.map {|v2| ["--#{k}", v2.to_s]}
         elsif (v.is_a?(Proc))
-          ["--#{k}", v.call.to_s]
+          ["--#{k}", v.call(context).to_s]
         else
           ["--#{k}", v.to_s]
         end
       end.flatten
     end
 
-    def command
-      [@java, '-jar', "\"#{@jar}\"", serialize_options(@options)].flatten.join(' ')
+    def command(context)
+      [@java, '-jar', "\"#{@jar}\"", serialize_options(@options, context)].flatten.join(' ')
     end
 
   end
